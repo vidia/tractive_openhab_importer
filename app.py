@@ -20,9 +20,7 @@ async def gather_tractive_data():
     ) as client:
         await client.authenticate()
 
-        # I just have one tracker.
         trackers = await client.trackers()
-
         for tracker in trackers:
             details = await tracker.details()
             hw_id = details["hw_id"]
