@@ -26,6 +26,8 @@ async def gather_tractive_data():
             position = await tracker.pos_report()
             location = position["latlong"]
 
+            print("Sending data for " + hw_id)
+            print("Location: " + str(location))
             # TODO: Need a more general purpose way to do this.
             if position["power_saving_zone_id"] == "66183b1a8daa09e1aed7f017":
                 await send_to_item(f"{hw_id}_Presence", "ON")
@@ -42,4 +44,8 @@ async def main():
 
 if __name__ == "__main__":
     load_dotenv()
+
+    print("Logging in to Tractive as : " + os.getenv("TRACTIVE_USERNAME"))
+    print("Sending data to OpenHAB at : " + os.getenv("OPENHAB_URL"))
+
     asyncio.run(main())
