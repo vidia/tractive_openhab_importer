@@ -4,15 +4,13 @@ from aiotractive import Tractive
 import aiohttp
 from dotenv import load_dotenv
 
-load_dotenv()
-
 async def send_to_item(item_name, payload):
     async with aiohttp.ClientSession() as session:
         baseurl = os.getenv("OPENHAB_URL")
         url = f"{baseurl}/rest/items/{item_name}/state"
         async with session.put(url, data=payload) as response:
             if not (response.status >= 200 and response.status < 300):
-                raise Exception(f"Failed to update: {response.status}")
+                raise Exception(f"Failed to update {item_name} to {payload} with {response.status}")
 
 async def gather_tractive_data():
     async with Tractive(
@@ -43,4 +41,5 @@ async def main():
         await asyncio.sleep(120)
 
 if __name__ == "__main__":
+    load_dotenv()
     asyncio.run(main())
