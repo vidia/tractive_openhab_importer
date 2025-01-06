@@ -24,11 +24,13 @@ async def gather_tractive_data():
         trackers = await client.trackers()
 
         for tracker in trackers:
-            hw_id = tracker["hardware_id"]
+            details = await tracker.details()
+            hw_id = details["hw_id"]
 
             position = await tracker.pos_report()
             location = position["latlong"]
 
+            # TODO: Need a more general purpose way to do this.
             if position["power_saving_zone_id"] == "66183b1a8daa09e1aed7f017":
                 await send_to_item(f"{hw_id}_Presence", "ON")
             else:
