@@ -12,9 +12,9 @@ async def send_to_item(item_name, payload):
         url = f"{baseurl}/rest/items/{item_name}/state"
         async with session.put(url, data=payload) as response:
             if not (response.status >= 200 and response.status < 300):
-                print(f"Failed to update: {response.status}")
+                raise Exception(f"Failed to update: {response.status}")
 
-async def main():
+async def gather_tractive_data():
     async with Tractive(
         os.getenv("TRACTIVE_USERNAME"), os.getenv("TRACTIVE_PASSWORD")
     ) as client:
@@ -22,18 +22,25 @@ async def main():
 
         # I just have one tracker.
         trackers = await client.trackers()
-        tracker = trackers[0]
 
-        position = await tracker.pos_report()
+        for tracker in trackers:
+            hw_id = tracker["hardware_id"]
 
-        location = position["latlong"]
-        if position["power_saving_zone_id"] == "66183b1a8daa09e1aed7f017":
-                await send_to_item("Cosmo_Presence", "ON")
-        else:
-                await send_to_item("Cosmo_Presence", "OFF")
+            position = await tracker.pos_report()
+            location = position["latlong"]
 
-        await send_to_item("Cosmo_Location", f"{location[0]},{location[1]}")
+            if position["power_saving_zone_id"] == "66183b1a8daa09e1aed7f017":
+                await send_to_item(f"{hw_id}_Presence", "ON")
+            else:
+                await send_to_item(f"{hw_id}_Presence", "OFF")
+
+            await send_to_item(f"{hw_id}_Location", f"{location[0]},{location[1]}")
     pass
+
+async def main():
+    while True:
+        await gather_tractive_data()
+        await asyncio.sleep(120)
 
 if __name__ == "__main__":
     asyncio.run(main())
