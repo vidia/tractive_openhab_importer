@@ -70,7 +70,9 @@ async def main():
             except TractiveError as e:
                 # TractiveErrors can be 429s, so try again after a delay a few times.
                 # TODO: Unfortunately other generic errors can be thrown as TractiveErrors.
-                print(f"Failed with TractiveError: {e}")
+                print(f"Failed with TractiveError")
+                print(e)
+                print("Caused by exception: " + str(e.__cause__))
                 failures += 1
                 if failures > RETRY_COUNT:
                     # Let the exception crash the app.
