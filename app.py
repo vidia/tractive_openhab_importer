@@ -52,7 +52,14 @@ async def main():
     password = os.getenv("TRACTIVE_PASSWORD")
     openhab_url = os.getenv("OPENHAB_URL")
 
-    if not username or not password or not openhab_url:
+    if (
+        not username
+        or not password
+        or not openhab_url
+        or username == ""
+        or password == ""
+        or openhab_url == ""
+    ):
         raise Exception("Missing required environment variables")
 
     print("=== Starting Tractive to OpenHAB bridge ===")
@@ -82,7 +89,9 @@ async def main():
                     await asyncio.sleep(RETRY_DELAY)
                     continue
             except UnauthorizedError as e:
-                print(f"Failed to authorize to Tractive. Check Username and password. Exiting.")
+                print(
+                    f"Failed to authorize to Tractive. Check Username and password. Exiting."
+                )
                 # Let the exception crash the app.
                 raise e
 
