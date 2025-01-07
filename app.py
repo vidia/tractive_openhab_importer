@@ -35,8 +35,8 @@ async def gather_tractive_data(client):
         position = await tracker.pos_report()
         location = position["latlong"]
 
-        print("Sending data for " + hw_id)
-        print("Location: " + str(location))
+        print("Gathered data for tracker: " + hw_id)
+        print(" - Location: " + str(location))
 
         # TODO: Need a more general purpose way to do this.
         if position["power_saving_zone_id"] == "66183b1a8daa09e1aed7f017":
