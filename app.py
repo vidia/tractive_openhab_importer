@@ -1,10 +1,18 @@
 import asyncio
 import os
 from aiotractive import Tractive
+from aiotractive.exceptions import TractiveError, UnauthorizedError, NotFoundError
 import aiohttp
+# from aiohttp.client_exceptions import ClientResponseError
 from dotenv import load_dotenv
 
+# Times in seconds
+DELAY = 60 * 5 # 5 minutes
+RETRY_DELAY = 60 * 5 # 5 minutes
+RETRY_COUNT = 5
+
 async def send_to_item(item_name, payload):
+    print(f"Sending {payload} to OpenHAB item {item_name}")
     async with aiohttp.ClientSession() as session:
         baseurl = os.getenv("OPENHAB_URL")
         url = f"{baseurl}/rest/items/{item_name}/state"
@@ -12,40 +20,78 @@ async def send_to_item(item_name, payload):
             if not (response.status >= 200 and response.status < 300):
                 raise Exception(f"Failed to update {item_name} to {payload} with {response.status}")
 
-async def gather_tractive_data():
-    async with Tractive(
-        os.getenv("TRACTIVE_USERNAME"), os.getenv("TRACTIVE_PASSWORD")
-    ) as client:
-        await client.authenticate()
+async def gather_tractive_data(client):
+    # Reauth. Internally it will only reauth if needed.
+    await client.authenticate()
 
-        trackers = await client.trackers()
-        for tracker in trackers:
-            details = await tracker.details()
-            hw_id = details["hw_id"]
+    trackers = await client.trackers()
+    for tracker in trackers:
+        details = await tracker.details()
+        hw_id = details["hw_id"]
 
-            position = await tracker.pos_report()
-            location = position["latlong"]
+        position = await tracker.pos_report()
+        location = position["latlong"]
 
-            print("Sending data for " + hw_id)
-            print("Location: " + str(location))
-            # TODO: Need a more general purpose way to do this.
-            if position["power_saving_zone_id"] == "66183b1a8daa09e1aed7f017":
-                await send_to_item(f"{hw_id}_Presence", "ON")
-            else:
-                await send_to_item(f"{hw_id}_Presence", "OFF")
+        print("Sending data for " + hw_id)
+        print("Location: " + str(location))
 
-            await send_to_item(f"{hw_id}_Location", f"{location[0]},{location[1]}")
-    pass
+        # TODO: Need a more general purpose way to do this.
+        if position["power_saving_zone_id"] == "66183b1a8daa09e1aed7f017":
+            await send_to_item(f"{hw_id}_Presence", "ON")
+        else:
+            await send_to_item(f"{hw_id}_Presence", "OFF")
+
+        await send_to_item(f"{hw_id}_Location", f"{location[0]},{location[1]}")
 
 async def main():
-    while True:
-        await gather_tractive_data()
-        await asyncio.sleep(120)
+    failures = 0
+
+    username = os.getenv("TRACTIVE_USERNAME")
+    password = os.getenv("TRACTIVE_PASSWORD")
+    openhab_url = os.getenv("OPENHAB_URL")
+
+    if not username or not password or not openhab_url:
+        raise Exception("Missing required environment variables")
+    
+    print("Starting Tractive to OpenHAB bridge")
+
+    print("Logging in to Tractive as : " + username)
+    print("Sending data to OpenHAB at : " + openhab_url)
+
+    async with Tractive(
+        username, password
+    ) as client:
+        while True:
+            try:
+                await gather_tractive_data(client)
+                # Reset counts on success
+                failures = 0
+            except TractiveError as e:
+                # TractiveErrors can be 429s, so try again after a delay a few times.
+                print(f"Failed with TractiveError: {e}")
+                failures += 1
+                if(failures > RETRY_COUNT):
+                    # Let the exception crash the app.
+                    raise e
+                else:
+                    print("Waiting an additional delay before trying again.")
+                    await asyncio.sleep(RETRY_DELAY)
+                    continue
+            except UnauthorizedError as e:
+                print(f"Failed with UnauthorizedError: {e}")
+                # Let the exception crash the app.
+                raise e
+            except NotFoundError as e:
+                print(f"Failed with NotFoundError: {e}")
+                # Let the exception crash the app.
+                raise e
+                
+            # Repeat after delay
+            print(f"Waiting {DELAY} seconds before repeating")
+            await asyncio.sleep(DELAY)
+    pass
 
 if __name__ == "__main__":
     load_dotenv()
-
-    print("Logging in to Tractive as : " + os.getenv("TRACTIVE_USERNAME"))
-    print("Sending data to OpenHAB at : " + os.getenv("OPENHAB_URL"))
 
     asyncio.run(main())
